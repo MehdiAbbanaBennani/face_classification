@@ -12,6 +12,15 @@ from utils.inference import apply_offsets
 from utils.inference import load_detection_model
 from utils.preprocessor import preprocess_input
 
+
+import glob
+VIDEO_PATH = "/home/mehdi/Documents/temp/face_classification/inputs/20180626_194215.mp4"
+SAVE_PATH = "/home/mehdi/Documents/temp/face_classification/outputs/"
+
+id = len(glob.glob(SAVE_PATH))
+output_filename = "output-" + str(id) + ".avi"
+
+
 # parameters for loading data and images
 detection_model_path = '../trained_models/detection_models/haarcascade_frontalface_default.xml'
 emotion_model_path = '../trained_models/emotion_models/fer2013_mini_XCEPTION.102-0.66.hdf5'
@@ -40,7 +49,14 @@ emotion_window = []
 
 # starting video streaming
 cv2.namedWindow('window_frame')
-video_capture = cv2.VideoCapture(0)
+video_capture = cv2.VideoCapture(VIDEO_PATH)
+frame_width = int( video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+frame_height =int( video_capture.get( cv2.CAP_PROP_FRAME_HEIGHT))
+
+# Define the codec and create VideoWriter object
+fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+out = cv2.VideoWriter(SAVE_PATH + output_filename,fourcc, 20.0, (frame_width,frame_height))
+
 while True:
 
     bgr_image = video_capture.read()[1]
@@ -95,6 +111,14 @@ while True:
                   color, 0, -45, 1, 1)
 
     bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-    cv2.imshow('window_frame', bgr_image)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    # cv2.imshow('window_frame', bgr_image)
+    # write the flipped frame
+    out.write(bgr_image)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #     break
+
+
+# Release everything if job is finished
+video_capture.release()
+out.release()
+cv2.destroyAllWindows()

@@ -14,11 +14,8 @@ from utils.preprocessor import preprocess_input
 
 
 import glob
-VIDEO_PATH = "/home/mehdi/Documents/temp/face_classification/inputs/20180626_194215.mp4"
+VIDEOS_PATH = "/home/mehdi/Documents/temp/face_classification/inputs/"
 SAVE_PATH = "/home/mehdi/Documents/temp/face_classification/outputs/"
-
-id = len(glob.glob(SAVE_PATH))
-output_filename = "output-" + str(id) + ".avi"
 
 
 # parameters for loading data and images
@@ -29,96 +26,104 @@ emotion_labels = get_labels('fer2013')
 gender_labels = get_labels('imdb')
 font = cv2.FONT_HERSHEY_SIMPLEX
 
-# hyper-parameters for bounding boxes shape
-frame_window = 10
-gender_offsets = (30, 60)
-emotion_offsets = (20, 40)
+for video_path in glob.glob(VIDEOS_PATH + "*") :
 
-# loading models
-face_detection = load_detection_model(detection_model_path)
-emotion_classifier = load_model(emotion_model_path, compile=False)
-gender_classifier = load_model(gender_model_path, compile=False)
+    id = len(glob.glob(SAVE_PATH + "*"))
+    output_filename = "output-" + str(id) + ".avi"
+    print(id)
 
-# getting input model shapes for inference
-emotion_target_size = emotion_classifier.input_shape[1:3]
-gender_target_size = gender_classifier.input_shape[1:3]
+    # hyper-parameters for bounding boxes shape
+    frame_window = 10
+    gender_offsets = (30, 60)
+    emotion_offsets = (20, 40)
 
-# starting lists for calculating modes
-gender_window = []
-emotion_window = []
+    # loading models
+    face_detection = load_detection_model(detection_model_path)
+    emotion_classifier = load_model(emotion_model_path, compile=False)
+    gender_classifier = load_model(gender_model_path, compile=False)
 
-# starting video streaming
-cv2.namedWindow('window_frame')
-video_capture = cv2.VideoCapture(VIDEO_PATH)
-frame_width = int( video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height =int( video_capture.get( cv2.CAP_PROP_FRAME_HEIGHT))
+    # getting input model shapes for inference
+    emotion_target_size = emotion_classifier.input_shape[1:3]
+    gender_target_size = gender_classifier.input_shape[1:3]
 
-# Define the codec and create VideoWriter object
-fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-out = cv2.VideoWriter(SAVE_PATH + output_filename,fourcc, 20.0, (frame_width,frame_height))
+    # starting lists for calculating modes
+    gender_window = []
+    emotion_window = []
 
-while True:
+    # starting video streaming
+    cv2.namedWindow('window_frame')
+    video_capture = cv2.VideoCapture(video_path)
+    frame_width = int( video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height =int( video_capture.get( cv2.CAP_PROP_FRAME_HEIGHT))
 
-    bgr_image = video_capture.read()[1]
-    gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
-    rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-    faces = detect_faces(face_detection, gray_image)
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    out = cv2.VideoWriter(SAVE_PATH + output_filename,fourcc, 20.0, (frame_width,frame_height))
 
-    for face_coordinates in faces:
+    while video_capture.isOpened():
 
-        x1, x2, y1, y2 = apply_offsets(face_coordinates, gender_offsets)
-        rgb_face = rgb_image[y1:y2, x1:x2]
+        ret, bgr_image = video_capture.read()
+        if ret :
+            gray_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2GRAY)
+            rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+            faces = detect_faces(face_detection, gray_image)
 
-        x1, x2, y1, y2 = apply_offsets(face_coordinates, emotion_offsets)
-        gray_face = gray_image[y1:y2, x1:x2]
-        try:
-            rgb_face = cv2.resize(rgb_face, (gender_target_size))
-            gray_face = cv2.resize(gray_face, (emotion_target_size))
-        except:
-            continue
-        gray_face = preprocess_input(gray_face, False)
-        gray_face = np.expand_dims(gray_face, 0)
-        gray_face = np.expand_dims(gray_face, -1)
-        emotion_label_arg = np.argmax(emotion_classifier.predict(gray_face))
-        emotion_text = emotion_labels[emotion_label_arg]
-        emotion_window.append(emotion_text)
+            for face_coordinates in faces:
 
-        rgb_face = np.expand_dims(rgb_face, 0)
-        rgb_face = preprocess_input(rgb_face, False)
-        gender_prediction = gender_classifier.predict(rgb_face)
-        gender_label_arg = np.argmax(gender_prediction)
-        gender_text = gender_labels[gender_label_arg]
-        gender_window.append(gender_text)
+                x1, x2, y1, y2 = apply_offsets(face_coordinates, gender_offsets)
+                rgb_face = rgb_image[y1:y2, x1:x2]
 
-        if len(gender_window) > frame_window:
-            emotion_window.pop(0)
-            gender_window.pop(0)
-        try:
-            emotion_mode = mode(emotion_window)
-            gender_mode = mode(gender_window)
-        except:
-            continue
+                x1, x2, y1, y2 = apply_offsets(face_coordinates, emotion_offsets)
+                gray_face = gray_image[y1:y2, x1:x2]
+                try:
+                    rgb_face = cv2.resize(rgb_face, (gender_target_size))
+                    gray_face = cv2.resize(gray_face, (emotion_target_size))
+                except:
+                    continue
+                gray_face = preprocess_input(gray_face, False)
+                gray_face = np.expand_dims(gray_face, 0)
+                gray_face = np.expand_dims(gray_face, -1)
+                emotion_label_arg = np.argmax(emotion_classifier.predict(gray_face))
+                emotion_text = emotion_labels[emotion_label_arg]
+                emotion_window.append(emotion_text)
 
-        if gender_text == gender_labels[0]:
-            color = (0, 0, 255)
-        else:
-            color = (255, 0, 0)
+                rgb_face = np.expand_dims(rgb_face, 0)
+                rgb_face = preprocess_input(rgb_face, False)
+                gender_prediction = gender_classifier.predict(rgb_face)
+                gender_label_arg = np.argmax(gender_prediction)
+                gender_text = gender_labels[gender_label_arg]
+                gender_window.append(gender_text)
 
-        draw_bounding_box(face_coordinates, rgb_image, color)
-        draw_text(face_coordinates, rgb_image, gender_mode,
-                  color, 0, -20, 1, 1)
-        draw_text(face_coordinates, rgb_image, emotion_mode,
-                  color, 0, -45, 1, 1)
+                if len(gender_window) > frame_window:
+                    emotion_window.pop(0)
+                    gender_window.pop(0)
+                try:
+                    emotion_mode = mode(emotion_window)
+                    gender_mode = mode(gender_window)
+                except:
+                    continue
 
-    bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
-    # cv2.imshow('window_frame', bgr_image)
-    # write the flipped frame
-    out.write(bgr_image)
-    # if cv2.waitKey(1) & 0xFF == ord('q'):
-    #     break
+                if gender_text == gender_labels[0]:
+                    color = (0, 0, 255)
+                else:
+                    color = (255, 0, 0)
 
+                draw_bounding_box(face_coordinates, rgb_image, color)
+                draw_text(face_coordinates, rgb_image, gender_mode,
+                          color, 0, -20, 1, 1)
+                draw_text(face_coordinates, rgb_image, emotion_mode,
+                          color, 0, -45, 1, 1)
 
-# Release everything if job is finished
-video_capture.release()
-out.release()
-cv2.destroyAllWindows()
+            bgr_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR)
+            # cv2.imshow('window_frame', bgr_image)
+            # write the flipped frame
+            out.write(bgr_image)
+            # if cv2.waitKey(1) & 0xFF == ord('q'):
+            #     break
+        else :
+            break
+
+    # Release everything if job is finished
+    video_capture.release()
+    out.release()
+    cv2.destroyAllWindows()
